@@ -1,0 +1,15 @@
+# Python files
+*.py
+*.pyc
+__pycache__/
+
+# Office files
+*.pdf
+*.pptx
+*.docx
+
+# Markdown notes (keep only requirements.md and design.md)
+grassroot_problems_india.md
+
+# Kiro internal files
+.kiro/
