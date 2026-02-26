@@ -27,8 +27,8 @@ graph TB
     end
 
     subgraph "AI Layer"
-        BEDROCK["Amazon Bedrock<br/>(Claude 3 Sonnet)"]
-        KB["Bedrock Knowledge Base<br/>(RAG over scheme/RTI/finance data)"]
+        BEDROCK["Amazon Bedrock<br/>(Claude 3 Haiku)"]
+        KB["Context Injection<br/>(Scheme data loaded into prompt)"]
     end
 
     subgraph "Language Layer"
@@ -39,7 +39,6 @@ graph TB
     subgraph "Data Layer"
         DDB["Amazon DynamoDB<br/>(User Profiles + Sessions)"]
         S3["Amazon S3<br/>(Scheme Data, RTI Templates,<br/>Financial Content)"]
-        OS["OpenSearch Serverless<br/>(Vector Embeddings for RAG)"]
     end
 
     WEB --> APIGW
@@ -55,7 +54,6 @@ graph TB
     P2 --> BEDROCK
     P3 --> BEDROCK
     BEDROCK --> KB
-    KB --> OS
     KB --> S3
     P1 --> DDB
     P2 --> DDB
@@ -484,7 +482,7 @@ Globals:
         SCHEMES_BUCKET: !Ref DataBucket
         USER_TABLE: !Ref UsersTable
         SESSION_TABLE: !Ref SessionsTable
-        BEDROCK_MODEL_ID: anthropic.claude-3-sonnet-20240229-v1:0
+        BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
         BHASHINI_USER_ID: !Ref BhashiniUserId
         BHASHINI_API_KEY: !Ref BhashiniApiKey
 
@@ -575,6 +573,23 @@ Resources:
       WebsiteConfiguration:
         IndexDocument: index.html
 ```
+
+---
+
+## Cost Estimation (Prototype — $100 Budget)
+
+| Component | Service | Monthly Est. | Notes |
+|-----------|---------|-------------:|-------|
+| **AI** | Bedrock Claude 3 Haiku | ~$20-30 | $0.0003/1K input, $0.0013/1K output |
+| **Compute** | Lambda | ~$2 | Pay per invocation, free tier eligible |
+| **Database** | DynamoDB On-Demand | ~$1 | Sessions + profiles |
+| **Storage** | S3 | ~$0.10 | Scheme data + frontend assets |
+| **API** | API Gateway | ~$1 | REST endpoints |
+| **CDN** | CloudFront | ~$1 | Frontend delivery |
+| **Language** | Bhashini API | **Free** | Government of India API |
+| **Total** | | **~$30-45** | Well within $100 prototype budget |
+
+> **Key cost optimization**: Using Claude 3 Haiku (10x cheaper than Sonnet) and direct scheme data injection into prompts (Claude's 200K context window fits 50+ schemes) instead of OpenSearch Serverless ($174-350/mo minimum).
 
 ---
 
