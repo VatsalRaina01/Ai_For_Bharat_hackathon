@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="LokSarthi — AI-powered voice-first platform to help Indian citizens discover government schemes, file RTI applications, and get financial advice in their own language.">
+    <title>LokSarthi — लोकसारथी | AI Citizen Services</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">🏛️</span>
+                <div class="logo-text">
+                    <h1>LokSarthi</h1>
+                    <span class="logo-hindi">लोकसारथी</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <select id="languageSelector" class="language-select">
+                    <option value="hi">🇮🇳 हिंदी</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="ta">தமிழ்</option>
+                    <option value="te">తెలుగు</option>
+                    <option value="bn">বাংলা</option>
+                    <option value="mr">मराठी</option>
+                    <option value="gu">ગુજરાતી</option>
+                    <option value="kn">ಕನ್ನಡ</option>
+                    <option value="ml">മലയാളം</option>
+                    <option value="pa">ਪੰਜਾਬੀ</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- Hero Section (shown initially) -->
+        <section id="heroSection" class="hero-section">
+            <div class="hero-tagline">
+                <div class="india-flag-line"></div>
+                <h2>आपका अधिकार, आपकी भाषा में</h2>
+                <p>Your Rights, In Your Language</p>
+            </div>
+
+            <!-- Service Cards -->
+            <div class="service-cards">
+                <button class="service-card card-schemes" onclick="startService('schemes')">
+                    <div class="card-icon">🏛️</div>
+                    <h3>सरकारी योजनाएँ</h3>
+                    <p>Government Schemes</p>
+                    <span class="card-badge">40+ योजनाएँ</span>
+                </button>
+                <button class="service-card card-rti" onclick="startService('rti')">
+                    <div class="card-icon">📝</div>
+                    <h3>RTI / शिकायत</h3>
+                    <p>File Complaint</p>
+                    <span class="card-badge">AI Draft</span>
+                </button>
+                <button class="service-card card-finance" onclick="startService('finance')">
+                    <div class="card-icon">💰</div>
+                    <h3>लोन / पैसा सलाह</h3>
+                    <p>Financial Advice</p>
+                    <span class="card-badge">Fraud Alert</span>
+                </button>
+            </div>
+
+            <!-- Voice CTA -->
+            <div class="voice-cta">
+                <button id="heroMicBtn" class="mic-btn mic-btn-large pulse" onclick="toggleVoice()">
+                    <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </button>
+                <p class="mic-label">बोलकर पूछें — Tap to speak</p>
+            </div>
+        </section>
+
+        <!-- Chat Section (shown after interaction) -->
+        <section id="chatSection" class="chat-section hidden">
+            <div id="chatMessages" class="chat-messages">
+                <!-- Messages will be dynamically inserted here -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Chat Input Bar (Fixed at bottom) -->
+    <div class="input-bar">
+        <div class="input-container">
+            <button id="backBtn" class="back-btn hidden" onclick="goHome()">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </button>
+            <input
+                type="text"
+                id="messageInput"
+                class="message-input"
+                placeholder="अपना सवाल लिखें... Type your question..."
+                autocomplete="off"
+                onkeypress="handleKeyPress(event)"
+            >
+            <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+            <button id="micBtn" class="mic-btn mic-btn-small" onclick="toggleVoice()">
+                <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Audio Player (hidden) -->
+    <audio id="audioPlayer" style="display:none"></audio>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loadingText">LokSarthi सोच रहा है...</p>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/voice.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

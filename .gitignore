@@ -1,0 +1,39 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AWS SAM
+.aws-sam/
+
+# Local files
+*.pdf
+*.pptx
+grassroot_problems_india.md
+extract_slides.py
+run_tests.py
+test_results.txt
+test_output.txt
+tests/
+test_debug.md
+test_output.md
+run_local.py
+samconfig.toml
+template.yaml
+
+# Kiro specs
+.kiro/
