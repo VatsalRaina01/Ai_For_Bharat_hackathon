@@ -1,89 +1,233 @@
 /**
- * Voice Module — Web Audio API for voice recording
+ * Voice Module — Continuous voice conversation mode
+ * Speak → Listen → Reply → Speak back → Listen again (loop)
+ * Text input is optional — voice is primary.
  */
 
-let mediaRecorder = null;
-let audioChunks = [];
+let recognition = null;
 let isRecording = false;
+let conversationMode = false;  // Continuous voice loop
+let silenceTimer = null;
+const SILENCE_TIMEOUT = 2500;  // Auto-send after 2.5s of silence
+
+// Language codes for Web Speech API (BCP-47)
+const SPEECH_LANG_MAP = {
+    'hi': 'hi-IN',
+    'en': 'en-IN',
+    'ta': 'ta-IN',
+    'te': 'te-IN',
+    'bn': 'bn-IN',
+    'mr': 'mr-IN',
+    'gu': 'gu-IN',
+    'kn': 'kn-IN',
+    'ml': 'ml-IN',
+    'pa': 'pa-IN',
+};
 
 /**
- * Toggle voice recording on/off
+ * Check if Web Speech API is supported
  */
-async function toggleVoice() {
+function isSpeechSupported() {
+    return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+}
+
+/**
+ * Create a new speech recognition instance
+ */
+function createRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SpeechRecognition();
+
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.lang = SPEECH_LANG_MAP[currentLanguage] || 'hi-IN';
+
+    return rec;
+}
+
+/**
+ * Toggle voice — starts conversation mode on first tap
+ */
+function toggleVoice() {
+    if (!isSpeechSupported()) {
+        alert('आपका ब्राउज़र वॉइस सपोर्ट नहीं करता। Chrome या Edge उपयोग करें।\n\nPlease use Chrome or Edge for voice.');
+        return;
+    }
+
     if (isRecording) {
+        // User tapped mic to stop — exit conversation mode
+        conversationMode = false;
         stopRecording();
     } else {
-        await startRecording();
+        // Start conversation mode
+        conversationMode = true;
+        startRecording();
     }
 }
 
 /**
- * Start recording audio
+ * Start speech recognition with silence detection
  */
-async function startRecording() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                sampleRate: 16000,
-                echoCancellation: true,
-                noiseSuppression: true,
+function startRecording() {
+    // Cancel any ongoing TTS first (so mic doesn't pick up speaker)
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+
+    recognition = createRecognition();
+    let fullTranscript = '';
+    let permissionTimer = null;
+
+    const input = document.getElementById('messageInput');
+    input.placeholder = '🎤 माइक अनुमति दें... Allow mic...';
+
+    recognition.onresult = (event) => {
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                fullTranscript += transcript + ' ';
+            } else {
+                interimTranscript += transcript;
             }
-        });
+        }
 
-        mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'audio/webm;codecs=opus'
-        });
+        // Show live preview in input AND voice transcript
+        const currentText = (fullTranscript + interimTranscript).trim();
+        input.value = currentText;
+        input.placeholder = '🎤 सुन रहा हूँ... Listening...';
+        if (typeof setVoiceTranscript === 'function') setVoiceTranscript(currentText);
 
-        audioChunks = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                audioChunks.push(event.data);
+        // Reset silence timer — user is still speaking
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+            // User went silent for 2.5s — auto-send
+            const text = input.value.trim();
+            if (text) {
+                autoSendVoiceMessage(text);
+                input.value = '';
+                fullTranscript = '';
             }
-        };
+        }, SILENCE_TIMEOUT);
+    };
 
-        mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    recognition.onend = () => {
+        clearTimeout(silenceTimer);
 
-            // Convert to base64
-            const reader = new FileReader();
-            reader.onload = async () => {
-                const base64 = reader.result.split(',')[1];
+        if (isRecording) {
+            // Auto-restart if still in recording mode
+            try {
+                recognition.start();
+            } catch (e) {
+                console.log('Restart failed:', e);
+                isRecording = false;
+                conversationMode = false;
+                updateMicButtons(false);
+            }
+            return;
+        }
 
-                // For now, show a message since voice transcription is being set up
-                switchToChat();
-                addAssistantMessage(
-                    "🎤 Voice input received! Voice transcription via Amazon Transcribe is being configured. " +
-                    "Please type your message for now — I understand Hindi, English, and many Indian languages!",
-                    null
-                );
-            };
-            reader.readAsDataURL(audioBlob);
+        // User manually stopped
+        const text = input.value.trim();
+        if (text) {
+            autoSendVoiceMessage(text);
+            input.value = '';
+        }
+        input.placeholder = 'अपना सवाल लिखें... Type your question...';
+        updateMicButtons(false);
+    };
 
-            // Stop all tracks
-            stream.getTracks().forEach(track => track.stop());
-        };
+    recognition.onerror = (event) => {
+        console.log('Speech error:', event.error);
+        clearTimeout(permissionTimer);
 
-        mediaRecorder.start();
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            isRecording = false;
+            conversationMode = false;
+            updateMicButtons(false);
+            input.placeholder = 'अपना सवाल लिखें... Type your question...';
+            alert('माइक्रोफ़ोन अनुमति दें।\nAllow microphone access.\n\n🔒 Address bar → Allow microphone.');
+            return;
+        }
+        // Non-fatal: let onend restart
+    };
+
+    recognition.onstart = () => {
+        clearTimeout(permissionTimer);
         isRecording = true;
         updateMicButtons(true);
+        if (typeof setVoiceState === 'function') setVoiceState('listening');
+        input.placeholder = '🎤 बोलिए... Speak now...';
 
-    } catch (err) {
-        console.error('Microphone error:', err);
-        alert('माइक्रोफ़ोन तक पहुँच नहीं मिली। कृपया अनुमति दें। / Could not access microphone. Please grant permission.');
+        if (typeof isChatActive !== 'undefined' && !isChatActive) {
+            switchToChat();
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (e) {
+        console.error('Start failed:', e);
+        input.placeholder = 'अपना सवाल लिखें... Type your question...';
+        return;
+    }
+
+    permissionTimer = setTimeout(() => {
+        if (!isRecording) {
+            input.placeholder = '⚠️ ब्राउज़र में माइक अनुमति दें! Allow mic in browser!';
+        }
+    }, 3000);
+}
+
+/**
+ * Stop speech recognition
+ */
+function stopRecording() {
+    clearTimeout(silenceTimer);
+    isRecording = false;
+    if (recognition) {
+        try { recognition.stop(); } catch (e) { /* ignore */ }
+    }
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
     }
 }
 
 /**
- * Stop recording
+ * Auto-send voice message and pause mic while processing
  */
-function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-    }
+function autoSendVoiceMessage(text) {
+    // Pause mic while AI processes and speaks back
     isRecording = false;
+    if (recognition) {
+        try { recognition.stop(); } catch (e) { /* ignore */ }
+    }
     updateMicButtons(false);
+
+    const input = document.getElementById('messageInput');
+    input.placeholder = '🤔 सोच रहा हूँ... Thinking...';
+    if (typeof setVoiceState === 'function') setVoiceState('thinking');
+    if (typeof setVoiceTranscript === 'function') setVoiceTranscript('');
+
+    // Send the message through the normal chat flow
+    sendMessageText(text);
+}
+
+/**
+ * Called by chat.js when TTS finishes speaking the response
+ * Restarts mic for the next turn of conversation
+ */
+function onTTSComplete() {
+    if (conversationMode) {
+        // Small delay to avoid echo, then restart listening
+        setTimeout(() => {
+            if (conversationMode) {
+                startRecording();
+            }
+        }, 500);
+    }
 }
 
 /**
@@ -99,5 +243,11 @@ function updateMicButtons(recording) {
     }
     if (chatMic) {
         chatMic.classList.toggle('recording', recording);
+    }
+
+    // Update conversation mode indicator
+    const indicator = document.getElementById('voiceModeIndicator');
+    if (indicator) {
+        indicator.classList.toggle('hidden', !conversationMode);
     }
 }

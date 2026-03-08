@@ -6,8 +6,12 @@ AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 # Bedrock
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
-BEDROCK_MAX_TOKENS = int(os.environ.get("BEDROCK_MAX_TOKENS", "2000"))
+BEDROCK_MAX_TOKENS = int(os.environ.get("BEDROCK_MAX_TOKENS", "800"))  # lower = cheaper
 BEDROCK_TEMPERATURE = float(os.environ.get("BEDROCK_TEMPERATURE", "0.3"))
+
+# Text-to-Speech — disabled by default to save Polly credits
+# Set ENABLE_TTS=true in .env to turn on audio responses
+ENABLE_TTS = os.environ.get("ENABLE_TTS", "false").lower() == "true"
 
 # DynamoDB
 USERS_TABLE = os.environ.get("USERS_TABLE", "loksarthi-users")

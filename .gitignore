@@ -5,8 +5,10 @@ __pycache__/
 
 # Virtual environments
 venv/
-.env/
 .venv/
+
+# Environment / secrets
+.env
 
 # IDE
 .vscode/
@@ -20,20 +22,25 @@ Thumbs.db
 # AWS SAM
 .aws-sam/
 
-# Local files
+# Test / Debug files
+test_*.py
+debug_*.py
+diag_*.py
+extract_slides.py
+*_test_result.txt
+*_result.txt
+debug_output.txt
+conversation_test.txt
+hindi_test.txt
+server.log
+server_err.log
+
+# Research / Planning docs (not needed in repo)
+grassroot_problems_india.md
+
+# Original submission PDFs
 *.pdf
 *.pptx
-grassroot_problems_india.md
-extract_slides.py
-run_tests.py
-test_results.txt
-test_output.txt
-tests/
-test_debug.md
-test_output.md
-run_local.py
-samconfig.toml
-template.yaml
 
 # Kiro specs
 .kiro/

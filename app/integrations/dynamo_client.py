@@ -37,20 +37,31 @@ def _convert_floats(obj):
     return obj
 
 
-def get_session(session_id: str) -> Session:
-    """Get session from DynamoDB, or create a new one."""
-    table = get_dynamodb().Table(SESSIONS_TABLE)
+# In-memory session cache — avoids a DynamoDB read on every request
+# Sessions are evicted when the process restarts (fine for local dev)
+_session_cache: dict = {}
 
+
+def get_session(session_id: str) -> Session:
+    """Get session from in-memory cache first, then DynamoDB, or create new."""
+    if session_id in _session_cache:
+        return _session_cache[session_id]
+
+    table = get_dynamodb().Table(SESSIONS_TABLE)
     try:
         response = table.get_item(Key={"session_id": session_id})
         if "Item" in response:
             item = json.loads(json.dumps(response["Item"], cls=DecimalEncoder))
-            return Session.from_dict(item)
+            session = Session.from_dict(item)
+            _session_cache[session_id] = session
+            return session
     except Exception:
         pass
 
-    # Create new session
-    return Session(session_id=session_id)
+    # Create new session and cache it
+    session = Session(session_id=session_id)
+    _session_cache[session_id] = session
+    return session
 
 
 def save_session(session: Session):

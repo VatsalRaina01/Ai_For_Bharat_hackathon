@@ -15,6 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const langSelect = document.getElementById('languageSelector');
     langSelect.addEventListener('change', (e) => {
         currentLanguage = e.target.value;
+        const input = document.getElementById('messageInput');
+        if (currentLanguage === 'hi') {
+            input.placeholder = 'अपना सवाल लिखें... Type your question...';
+        } else {
+            input.placeholder = 'Type your question here...';
+        }
     });
 
     // Focus input on desktop

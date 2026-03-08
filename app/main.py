@@ -1,9 +1,11 @@
 """LokSarthi — FastAPI Application + Lambda Handler."""
 import json
+import os
 import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from mangum import Mangum
 
 from app.orchestrator import process_message
@@ -25,6 +27,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve frontend assets — mount css/ and js/ so relative paths work from root
+_frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+if os.path.isdir(_frontend_dir):
+    app.mount("/css", StaticFiles(directory=os.path.join(_frontend_dir, "css")), name="css")
+    app.mount("/js", StaticFiles(directory=os.path.join(_frontend_dir, "js")), name="js")
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """Redirect root to the frontend UI."""
+    return FileResponse(os.path.join(_frontend_dir, "index.html"))
 
 
 @app.get("/api/health")
@@ -81,11 +95,25 @@ async def chat(request: Request):
         session.language = language
 
     # Process message through orchestrator
-    result = process_message(session, message)
+    try:
+        result = process_message(session, message)
+    except Exception as e:
+        print(f"Orchestrator error: {e}")
+        return JSONResponse(content={
+            "text": "Sorry, something went wrong. Please try again. / कुछ गलत हो गया, कृपया दोबारा कोशिश करें।",
+            "audio_base64": None,
+            "language": session.language,
+            "pillar": "greeting",
+            "session_id": session_id,
+            "schemes": [],
+        })
 
-    # Save updated session
+    # Save updated session (fail silently — DynamoDB may not be set up locally)
     updated_session = result.pop("session")
-    save_session(updated_session)
+    try:
+        save_session(updated_session)
+    except Exception as e:
+        print(f"Session save skipped (DynamoDB not available): {e}")
 
     # Return response
     return JSONResponse(content={

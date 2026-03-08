@@ -1,0 +1,7 @@
+[default.deploy.parameters]
+stack_name = "loksarthi"
+resolve_s3 = true
+s3_prefix = "loksarthi"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"

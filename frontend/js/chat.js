@@ -1,130 +1,263 @@
 /**
- * Chat UI — Handles message rendering and chat interactions
+ * Chat UI — Voice-first with collapsible chat log
+ * Manages voice ring states, message rendering, and TTS
  */
 
-/**
- * Add a user message to the chat
- */
+let ttsEnabled = true;
+let messageCount = 0;
+
+// ── Voice Ring State Management ──
+
+function setVoiceState(state) {
+    const ring = document.getElementById('voiceRing');
+    const statusText = document.getElementById('voiceStatusText');
+    const transcript = document.getElementById('voiceTranscript');
+    if (!ring) return;
+
+    ring.className = 'voice-ring ' + state;
+
+    const labels = {
+        'listening': '🎤 बोलिए... Speak now',
+        'thinking': '🤔 सोच रहा हूँ... Thinking...',
+        'speaking': '🔊 सुनिए... Speaking...',
+        'idle': '🎤 माइक दबाएं / Tap mic to start',
+    };
+    if (statusText) statusText.textContent = labels[state] || labels['idle'];
+}
+
+function setVoiceTranscript(text) {
+    const el = document.getElementById('voiceTranscript');
+    if (el) el.textContent = text;
+}
+
+// ── Chat Log Toggle ──
+
+function toggleChatLog() {
+    const log = document.getElementById('chatLog');
+    const btn = document.getElementById('chatToggleBtn');
+    if (!log) return;
+
+    const isHidden = log.classList.contains('hidden');
+    log.classList.toggle('hidden');
+    if (btn) {
+        btn.innerHTML = isHidden
+            ? '📜 चैट छुपाएं / Hide Chat <span class="msg-count">' + messageCount + '</span>'
+            : '📜 चैट देखें / Show Chat <span class="msg-count">' + messageCount + '</span>';
+    }
+}
+
+function updateMsgCount() {
+    messageCount++;
+    const el = document.getElementById('msgCount');
+    if (el) el.textContent = messageCount;
+}
+
+// ── Message Rendering ──
+
 function addUserMessage(text) {
     const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
     const msgDiv = document.createElement('div');
     msgDiv.className = 'message message-user';
     msgDiv.textContent = text;
     chatMessages.appendChild(msgDiv);
+    updateMsgCount();
     scrollToBottom();
 }
 
-/**
- * Add an assistant message with optional audio playback
- */
 function addAssistantMessage(text, audioBase64) {
     const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
     const msgDiv = document.createElement('div');
     msgDiv.className = 'message message-assistant';
 
-    // Format text — convert markdown-like formatting
     let formattedText = formatMessage(text);
-
     msgDiv.innerHTML = formattedText;
 
-    // Add audio play button if audio exists
-    if (audioBase64) {
-        const audioBtn = document.createElement('button');
-        audioBtn.className = 'message-audio-btn';
-        audioBtn.innerHTML = '🔊 सुनें / Listen';
-        audioBtn.onclick = () => playAudio(audioBase64);
-        msgDiv.appendChild(audioBtn);
-    }
+    // Replay button
+    const speakBtn = document.createElement('button');
+    speakBtn.className = 'message-audio-btn';
+    speakBtn.innerHTML = '🔊 सुनें';
+    speakBtn.onclick = () => {
+        if (audioBase64) { playAudioWithCallback(audioBase64); }
+        else { speakText(text); }
+    };
+    msgDiv.appendChild(speakBtn);
 
     chatMessages.appendChild(msgDiv);
+    updateMsgCount();
     scrollToBottom();
 
-    // Auto-play audio for accessibility (voice-first)
-    if (audioBase64) {
-        playAudio(audioBase64);
+    // Update voice ring to "speaking" state
+    setVoiceState('speaking');
+    setVoiceTranscript('');
+
+    // Auto-speak
+    if (ttsEnabled) {
+        if (audioBase64) {
+            playAudioWithCallback(audioBase64);
+        } else {
+            speakText(text);
+        }
     }
 }
 
-/**
- * Show typing indicator
- */
-function showTypingIndicator() {
-    const chatMessages = document.getElementById('chatMessages');
-    const typingDiv = document.createElement('div');
-    typingDiv.id = 'typingIndicator';
-    typingDiv.className = 'typing-indicator';
-    typingDiv.innerHTML = `
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-    `;
-    chatMessages.appendChild(typingDiv);
-    scrollToBottom();
+// ── TTS (Browser fallback) ──
+
+function speakText(text) {
+    if (!('speechSynthesis' in window)) {
+        setVoiceState('idle');
+        if (typeof onTTSComplete === 'function') onTTSComplete();
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+    setVoiceState('speaking');
+
+    let cleanText = text
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/#{1,3}\s/g, '')
+        .replace(/^- /gm, '')
+        .replace(/^\d+\.\s/gm, '')
+        .replace(/[🏛️✅❌🎤⚠️🚨📋💰🔊🤔📜🙏]/g, '')
+        .replace(/---.*?---/gs, '')
+        .trim();
+
+    const chunks = splitIntoChunks(cleanText, 180);
+
+    chunks.forEach((chunk, i) => {
+        const utterance = new SpeechSynthesisUtterance(chunk);
+        const hasHindi = /[\u0900-\u097f]/.test(chunk);
+        utterance.lang = hasHindi ? 'hi-IN' : 'en-IN';
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const langPrefix = hasHindi ? 'hi' : 'en';
+        const v = voices.find(v => v.lang.startsWith(langPrefix) && v.lang.includes('IN'));
+        if (v) utterance.voice = v;
+
+        if (i === chunks.length - 1) {
+            utterance.onend = () => {
+                setVoiceState('idle');
+                if (typeof onTTSComplete === 'function') onTTSComplete();
+            };
+        }
+
+        window.speechSynthesis.speak(utterance);
+    });
 }
 
-/**
- * Remove typing indicator
- */
-function removeTypingIndicator() {
-    const typing = document.getElementById('typingIndicator');
-    if (typing) typing.remove();
+function splitIntoChunks(text, maxLen) {
+    const sentences = text.match(/[^.!?।\n]+[.!?।\n]?/g) || [text];
+    const chunks = [];
+    let current = '';
+    for (const s of sentences) {
+        if ((current + s).length > maxLen && current.length > 0) {
+            chunks.push(current.trim());
+            current = s;
+        } else {
+            current += s;
+        }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks;
 }
 
-/**
- * Format message text with basic markdown support
- */
-function formatMessage(text) {
-    // Escape HTML
-    let html = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+// ── Audio Playback (Polly) ──
 
-    // Bold: **text**
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+function playAudioWithCallback(base64Data) {
+    const audio = document.getElementById('audioPlayer');
+    audio.src = 'data:audio/mp3;base64,' + base64Data;
+    setVoiceState('speaking');
 
-    // Italic: *text*
-    html = html.replace(/(?<!\*)\*(?!\*)(.*?)\*(?!\*)/g, '<em>$1</em>');
+    audio.onended = () => {
+        setVoiceState('idle');
+        if (typeof onTTSComplete === 'function') onTTSComplete();
+    };
+    audio.onerror = () => {
+        setVoiceState('idle');
+        if (typeof onTTSComplete === 'function') onTTSComplete();
+    };
 
-    // Headers: ### heading
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-
-    // Bullet points
-    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
-
-    // Wrap consecutive <li> in <ul>
-    html = html.replace(/((?:<li>.*?<\/li>\n?)+)/g, '<ul>$1</ul>');
-
-    // Line breaks
-    html = html.replace(/\n\n/g, '<br><br>');
-    html = html.replace(/\n/g, '<br>');
-
-    // Emoji highlighting for alerts
-    html = html.replace(/🚨/g, '<span style="font-size:20px">🚨</span>');
-    html = html.replace(/⚠️/g, '<span style="font-size:20px">⚠️</span>');
-    html = html.replace(/✅/g, '<span style="font-size:18px">✅</span>');
-
-    return html;
+    audio.play().catch(err => {
+        console.log('Audio play failed:', err);
+        setVoiceState('idle');
+        if (typeof onTTSComplete === 'function') onTTSComplete();
+    });
 }
 
-/**
- * Play audio from base64 string
- */
 function playAudio(base64Data) {
     const audio = document.getElementById('audioPlayer');
     audio.src = 'data:audio/mp3;base64,' + base64Data;
     audio.play().catch(err => console.log('Audio play failed:', err));
 }
 
-/**
- * Scroll chat to bottom
- */
+// ── TTS Toggle ──
+
+function toggleTTS() {
+    ttsEnabled = !ttsEnabled;
+    window.speechSynthesis.cancel();
+    const btn = document.getElementById('ttsToggle');
+    if (btn) {
+        btn.innerHTML = ttsEnabled ? '🔊' : '🔇';
+        btn.title = ttsEnabled ? 'Voice ON' : 'Voice OFF';
+    }
+}
+
+// ── Typing Indicator ──
+
+function showTypingIndicator() {
+    setVoiceState('thinking');
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    const typingDiv = document.createElement('div');
+    typingDiv.id = 'typingIndicator';
+    typingDiv.className = 'typing-indicator';
+    typingDiv.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+    chatMessages.appendChild(typingDiv);
+}
+
+function removeTypingIndicator() {
+    const typing = document.getElementById('typingIndicator');
+    if (typing) typing.remove();
+}
+
+// ── Message Formatting ──
+
+function formatMessage(text) {
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/(?<!\*)\*(?!\*)(.*?)\*(?!\*)/g, '<em>$1</em>');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
+    html = html.replace(/((?:<li>.*?<\/li>\n?)+)/g, '<ul>$1</ul>');
+    html = html.replace(/\n\n/g, '<br><br>');
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
+}
+
+// ── Scroll ──
+
 function scrollToBottom() {
     const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
     setTimeout(() => {
         chatMessages.scrollTop = chatMessages.scrollHeight;
-        window.scrollTo(0, document.body.scrollHeight);
     }, 100);
+}
+
+// Preload voices
+if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 }

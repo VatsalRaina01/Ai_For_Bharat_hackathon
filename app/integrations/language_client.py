@@ -43,8 +43,8 @@ AWS_LANGUAGE_CODES = {
 
 # Polly voice IDs for Indian languages
 POLLY_VOICES = {
-    "hi": "Aditi",       # Hindi - Neural voice
-    "en": "Aditi",       # English (India accent)
+    "hi": {"voice": "Aditi", "lang_code": "hi-IN"},
+    "en": {"voice": "Aditi", "lang_code": "en-IN"},
 }
 
 
@@ -93,13 +93,16 @@ def text_to_speech(text: str, language: str = "hi") -> str:
     """
     client = get_polly_client()
 
-    voice_id = POLLY_VOICES.get(language, "Aditi")
+    voice_info = POLLY_VOICES.get(language, POLLY_VOICES["hi"])
+    voice_id = voice_info["voice"]
+    lang_code = voice_info["lang_code"]
 
     try:
         response = client.synthesize_speech(
             Text=text[:3000],  # Polly limit
             OutputFormat="mp3",
             VoiceId=voice_id,
+            LanguageCode=lang_code,
             Engine="standard",
         )
 

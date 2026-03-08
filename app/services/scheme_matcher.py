@@ -202,3 +202,22 @@ INSTRUCTIONS:
 8. Mention that you can also help with RTI applications and financial advice"""
 
     return generate_response(system_prompt, f"Please explain my eligible schemes. My language is: {language}")
+
+
+def explain_schemes_text(matched_schemes: list, profile: CitizenProfile) -> str:
+    """Return a simple text summary of matched schemes (no AI call)."""
+    if not matched_schemes:
+        return ""
+
+    lines = []
+    for i, match in enumerate(matched_schemes[:5], 1):
+        s = match["scheme"]
+        name = s.get("name_hi", s["name"])
+        benefit = s.get("benefit_amount", "")
+        how = s.get("how_to_apply", "")
+        lines.append(f"{i}. {name} - {benefit}")
+        if how:
+            lines.append(f"   आवेदन: {how}")
+    
+    return "\n".join(lines)
+
