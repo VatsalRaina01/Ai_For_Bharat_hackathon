@@ -7,7 +7,7 @@
 // For AWS: https://<api-id>.execute-api.<region>.amazonaws.com/prod
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:8000'
-    : (window.API_URL || '/api');
+    : '';
 
 /**
  * Send a chat message to the backend
