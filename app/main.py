@@ -29,7 +29,8 @@ app.add_middleware(
 )
 
 # Serve frontend assets — mount css/ and js/ so relative paths work from root
-_frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+from pathlib import Path
+_frontend_dir = str(Path(__file__).resolve().parent.parent / "frontend")
 if os.path.isdir(_frontend_dir):
     app.mount("/css", StaticFiles(directory=os.path.join(_frontend_dir, "css")), name="css")
     app.mount("/js", StaticFiles(directory=os.path.join(_frontend_dir, "js")), name="js")
